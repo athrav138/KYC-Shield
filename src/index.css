@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-app-bg: var(--app-bg);
+  --color-app-text: var(--app-text);
+  --color-app-card: var(--app-card);
+  --color-app-border: var(--app-border);
+}
+
+@layer base {
+  :root {
+    --app-bg: #ffffff;
+    --app-text: #0a0a0a;
+    --app-card: rgba(0, 0, 0, 0.03);
+    --app-border: rgba(0, 0, 0, 0.1);
+  }
+
+  .dark {
+    --app-bg: #0a0a0a;
+    --app-text: #ffffff;
+    --app-card: rgba(255, 255, 255, 0.05);
+    --app-border: rgba(255, 255, 255, 0.1);
+  }
+
+  body {
+    background-color: var(--app-bg);
+    color: var(--app-text);
+    @apply antialiased transition-colors duration-300;
+  }
+
+  /* Basic Markdown Styling */
+  .markdown-body h1 { @apply text-2xl font-bold mb-4 mt-6; }
+  .markdown-body h2 { @apply text-xl font-bold mb-3 mt-5; }
+  .markdown-body h3 { @apply text-lg font-bold mb-2 mt-4; }
+  .markdown-body p { @apply mb-4; }
+  .markdown-body ul { @apply list-disc pl-6 mb-4; }
+  .markdown-body ol { @apply list-decimal pl-6 mb-4; }
+  .markdown-body li { @apply mb-1; }
+  .markdown-body strong { @apply font-bold; }
+  .markdown-body em { @apply italic; }
+  .markdown-body blockquote { @apply border-l-4 border-emerald-500/50 pl-4 italic opacity-80 mb-4; }
+}
+
+.glass {
+  background-color: var(--app-card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--app-border);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-app-card rounded-full hover:bg-app-card/80 transition-colors;
+}
+
