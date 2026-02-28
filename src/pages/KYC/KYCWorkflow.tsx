@@ -11,6 +11,17 @@ import { cn } from '../../lib/utils';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
+const getFriendlyErrorMessage = (err: any): string => {
+  const msg = err?.message || '';
+  if (msg.includes('429') || msg.includes('Quota exceeded') || msg.includes('RESOURCE_EXHAUSTED')) {
+    return 'API Rate Limit Exceeded. Please wait a moment and try again.';
+  }
+  if (msg.includes('API key not valid')) {
+    return 'Invalid API Key. Please check your configuration.';
+  }
+  return msg || 'An unexpected error occurred.';
+};
+
 type Step = 'details' | 'aadhaar' | 'face' | 'voice' | 'result';
 
 export default function KYCWorkflow({ user }: { user: any }) {
@@ -124,7 +135,7 @@ export default function KYCWorkflow({ user }: { user: any }) {
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: [
           {
             parts: [
@@ -147,7 +158,7 @@ export default function KYCWorkflow({ user }: { user: any }) {
       handleNext();
     } catch (err: any) {
       console.error("Aadhaar Verification Error:", err);
-      setError(err.message || 'Aadhaar verification failed');
+      setError(getFriendlyErrorMessage(err) || 'Aadhaar verification failed');
     } finally {
       setLoading(false);
     }
@@ -248,7 +259,7 @@ export default function KYCWorkflow({ user }: { user: any }) {
       ];
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: [
           {
             parts: [
@@ -295,7 +306,7 @@ export default function KYCWorkflow({ user }: { user: any }) {
       setFaceImage(livenessFrames[0]);
     } catch (err: any) {
       console.error("Face Verification Error:", err);
-      setError(err.message || 'Face verification failed');
+      setError(getFriendlyErrorMessage(err) || 'Face verification failed');
     } finally {
       setLoading(false);
     }
@@ -390,7 +401,7 @@ export default function KYCWorkflow({ user }: { user: any }) {
       const expectedText = `My verification code is ${verificationCode}`;
       
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: [
           {
             parts: [
@@ -423,10 +434,10 @@ export default function KYCWorkflow({ user }: { user: any }) {
       const data = JSON.parse(response.text || "{}");
       if (data.transcript) setVoiceTranscript(data.transcript);
       setVoiceResult(data);
-      finalizeKYC(data);
+      await finalizeKYC(data);
     } catch (err: any) {
       console.error("Voice Verification Error:", err);
-      setError(err.message || 'Voice verification failed');
+      setError(getFriendlyErrorMessage(err) || 'Voice verification failed');
     } finally {
       setLoading(false);
     }
@@ -440,7 +451,7 @@ export default function KYCWorkflow({ user }: { user: any }) {
       const currentVoiceResult = vResult || voiceResult;
       
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: [
           {
             parts: [
@@ -458,28 +469,31 @@ export default function KYCWorkflow({ user }: { user: any }) {
       });
 
       const final = JSON.parse(response.text || "{}");
+      if (final.decision) {
+        final.decision = final.decision.toLowerCase();
+      }
       
       // Save to Firestore (if configured)
       if (db) {
         try {
           await addDoc(collection(db, "kyc_users"), {
-            userId: user.id,
-            name: personalDetails.fullName,
-            email: user.email,
+            userId: user.id || 'unknown',
+            name: personalDetails.fullName || 'unknown',
+            email: user.email || 'unknown',
             aadhaarNumber: aadhaarResult?.aadhaarNumber ? `XXXX-XXXX-${aadhaarResult.aadhaarNumber.slice(-4)}` : 'N/A',
             faceResult: {
-              matchScore: faceResult?.matchScore,
-              isLive: faceResult?.isLive,
-              riskLevel: faceResult?.riskLevel
+              matchScore: faceResult?.matchScore ?? 0,
+              isLive: faceResult?.isLive ?? false,
+              riskLevel: faceResult?.riskLevel ?? 'unknown'
             },
             voiceResult: {
-              matchesText: currentVoiceResult?.matchesText,
-              confidence: currentVoiceResult?.confidence,
-              riskLevel: currentVoiceResult?.riskLevel
+              matchesText: currentVoiceResult?.matchesText ?? false,
+              confidence: currentVoiceResult?.confidence ?? 0,
+              riskLevel: currentVoiceResult?.riskLevel ?? 'unknown'
             },
             status: final.decision === 'verified' ? 'Accepted' : 'Rejected',
-            confidenceScore: final.confidenceScore,
-            riskLevel: final.riskScore > 70 ? 'High' : final.riskScore > 30 ? 'Medium' : 'Low',
+            confidenceScore: final.confidenceScore ?? 0,
+            riskLevel: (final.riskScore ?? 0) > 70 ? 'High' : (final.riskScore ?? 0) > 30 ? 'Medium' : 'Low',
             timestamp: serverTimestamp(),
             createdAt: new Date().toISOString()
           });
@@ -510,7 +524,7 @@ export default function KYCWorkflow({ user }: { user: any }) {
       setStep('result');
     } catch (err: any) {
       console.error("Finalization Error:", err);
-      setError(err.message || 'Finalization failed');
+      setError(getFriendlyErrorMessage(err) || 'Finalization failed');
     } finally {
       setLoading(false);
     }

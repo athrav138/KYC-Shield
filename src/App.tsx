@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useState, useEffect } from 'react';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import KYCWorkflow from './pages/KYC/KYCWorkflow';
 import HistoryPage from './pages/History';
@@ -55,6 +57,8 @@ function App() {
           <Routes>
             <Route path="/login" element={!user ? <Login onLogin={setUser} /> : <Navigate to="/" />} />
             <Route path="/signup" element={!user ? <Signup /> : <Navigate to="/" />} />
+            <Route path="/forgot-password" element={!user ? <ForgotPassword /> : <Navigate to="/" />} />
+            <Route path="/reset-password" element={!user ? <ResetPassword /> : <Navigate to="/" />} />
             
             <Route path="/" element={user ? (
               user.role === 'admin' ? <AdminDashboard /> : <Dashboard user={user} />

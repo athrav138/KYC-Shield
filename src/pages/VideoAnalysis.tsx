@@ -7,6 +7,17 @@ import {
 import { GoogleGenAI } from "@google/genai";
 import { cn } from '../lib/utils';
 
+const getFriendlyErrorMessage = (err: any): string => {
+  const msg = err?.message || '';
+  if (msg.includes('429') || msg.includes('Quota exceeded') || msg.includes('RESOURCE_EXHAUSTED')) {
+    return 'API Rate Limit Exceeded. Please wait a moment and try again.';
+  }
+  if (msg.includes('API key not valid')) {
+    return 'Invalid API Key. Please check your configuration.';
+  }
+  return msg || 'An unexpected error occurred.';
+};
+
 export default function VideoAnalysis() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
@@ -55,7 +66,7 @@ export default function VideoAnalysis() {
       const base64Data = await base64Promise;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: [
           {
             parts: [
@@ -103,7 +114,7 @@ export default function VideoAnalysis() {
       });
     } catch (err: any) {
       console.error("Video Analysis Error:", err);
-      setError(err.message || 'Video analysis failed. Please ensure the file is a valid video format.');
+      setError(getFriendlyErrorMessage(err) || 'Video analysis failed. Please ensure the file is a valid video format.');
     } finally {
       setLoading(false);
     }

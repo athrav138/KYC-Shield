@@ -17,6 +17,17 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 
+const getFriendlyErrorMessage = (err: any): string => {
+  const msg = err?.message || '';
+  if (msg.includes('429') || msg.includes('Quota exceeded') || msg.includes('RESOURCE_EXHAUSTED')) {
+    return 'API Rate Limit Exceeded. Please wait a moment and try again.';
+  }
+  if (msg.includes('API key not valid')) {
+    return 'Invalid API Key. Please check your configuration.';
+  }
+  return msg || 'An unexpected error occurred.';
+};
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
@@ -104,7 +115,7 @@ export default function AdminDashboard() {
       if (!apiKey) throw new Error("Gemini API key is not configured.");
       
       const genAI = new GoogleGenAI({ apiKey });
-      const model = "gemini-3-flash-preview";
+      const model = "gemini-2.5-flash";
       
       const recentData = users.slice(0, 20).map(u => ({
         name: u.full_name,
@@ -135,7 +146,7 @@ export default function AdminDashboard() {
       setSummary(response.text || "Failed to generate summary.");
     } catch (err: any) {
       console.error("Summary error:", err);
-      setSummary("Error generating summary: " + err.message);
+      setSummary("Error generating summary: " + getFriendlyErrorMessage(err));
     } finally {
       setSummarizing(false);
     }

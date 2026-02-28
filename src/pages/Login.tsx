@@ -119,7 +119,10 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider opacity-40 ml-1">Password</label>
+              <div className="flex items-center justify-between ml-1">
+                <label className="text-xs font-semibold uppercase tracking-wider opacity-40">Password</label>
+                <Link to="/forgot-password" title="Forgot password" className="text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors">Forgot Password?</Link>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 opacity-20" />
                 <input 

@@ -52,6 +52,14 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
+
+  CREATE TABLE IF NOT EXISTS password_resets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT,
+    token TEXT,
+    expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Seed Admin if not exists
@@ -86,9 +94,10 @@ async function startServer() {
   // API Routes
   app.post("/api/auth/signup", (req, res) => {
     const { email, password, fullName } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Missing required fields" });
     try {
       const hashedPassword = bcrypt.hashSync(password, 10);
-      const result = db.prepare("INSERT INTO users (email, password, full_name) VALUES (?, ?, ?)").run(email, hashedPassword, fullName);
+      const result = db.prepare("INSERT INTO users (email, password, full_name) VALUES (?, ?, ?)").run(email, hashedPassword, fullName || null);
       res.json({ id: result.lastInsertRowid });
     } catch (err: any) {
       res.status(400).json({ error: "Email already exists" });
@@ -97,6 +106,7 @@ async function startServer() {
 
   app.post("/api/auth/login", (req, res) => {
     const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Missing credentials" });
     const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -106,6 +116,45 @@ async function startServer() {
     }
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role, fullName: user.full_name }, JWT_SECRET);
     res.json({ token, user: { id: user.id, email: user.email, role: user.role, fullName: user.full_name } });
+  });
+
+  app.post("/api/auth/forgot-password", (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Missing email" });
+    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    
+    // Always return success to prevent email enumeration
+    if (!user) {
+      return res.json({ message: "If an account exists with that email, a reset link has been sent." });
+    }
+
+    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+
+    db.prepare("DELETE FROM password_resets WHERE email = ?").run(email);
+    db.prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)").run(email, token, expiresAt);
+
+    console.log(`[EMAIL SIMULATION] Password reset link for ${email}: http://localhost:3000/reset-password?token=${token}`);
+    
+    res.json({ message: "If an account exists with that email, a reset link has been sent." });
+  });
+
+  app.post("/api/auth/reset-password", (req, res) => {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ error: "Missing token or password" });
+    }
+    const resetRequest: any = db.prepare("SELECT * FROM password_resets WHERE token = ?").get(token);
+
+    if (!resetRequest || new Date(resetRequest.expires_at) < new Date()) {
+      return res.status(400).json({ error: "Invalid or expired token" });
+    }
+
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    db.prepare("UPDATE users SET password = ? WHERE email = ?").run(hashedPassword, resetRequest.email);
+    db.prepare("DELETE FROM password_resets WHERE email = ?").run(resetRequest.email);
+
+    res.json({ message: "Password has been reset successfully." });
   });
 
   // KYC Routes
@@ -129,15 +178,15 @@ async function startServer() {
         INSERT INTO kyc_records (user_id, status, aadhaar_data, aadhaar_analysis, face_analysis, voice_analysis, final_decision, risk_score, confidence_score)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        userId,
-        final.decision,
-        JSON.stringify(aadhaar),
-        JSON.stringify(aadhaar),
-        JSON.stringify(face),
-        JSON.stringify(voice),
-        final.explanation,
-        final.riskScore,
-        final.confidenceScore
+        userId || null,
+        final?.decision || 'pending',
+        aadhaar ? JSON.stringify(aadhaar) : null,
+        aadhaar ? JSON.stringify(aadhaar) : null,
+        face ? JSON.stringify(face) : null,
+        voice ? JSON.stringify(voice) : null,
+        final?.explanation || null,
+        final?.riskScore ?? null,
+        final?.confidenceScore ?? null
       );
 
       res.json(final);
@@ -153,7 +202,14 @@ async function startServer() {
       db.prepare(`
         INSERT INTO video_analyses (user_id, video_name, is_deepfake, risk_level, confidence_score, analysis_data)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(req.user.id, videoName, isDeepfake ? 1 : 0, riskLevel, confidenceScore, JSON.stringify(analysisData));
+      `).run(
+        req.user.id, 
+        videoName || 'Unknown Video', 
+        isDeepfake ? 1 : 0, 
+        riskLevel || 'Unknown', 
+        confidenceScore ?? null, 
+        analysisData ? JSON.stringify(analysisData) : null
+      );
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: "Failed to save analysis" });

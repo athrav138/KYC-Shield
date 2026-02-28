@@ -5,6 +5,17 @@ import { GoogleGenAI } from "@google/genai";
 import Markdown from 'react-markdown';
 import { cn } from '../lib/utils';
 
+const getFriendlyErrorMessage = (err: any): string => {
+  const msg = err?.message || '';
+  if (msg.includes('429') || msg.includes('Quota exceeded') || msg.includes('RESOURCE_EXHAUSTED')) {
+    return 'API Rate Limit Exceeded. Please wait a moment and try again.';
+  }
+  if (msg.includes('API key not valid')) {
+    return 'Invalid API Key. Please check your configuration.';
+  }
+  return msg || "I'm having trouble connecting right now. Please try again later.";
+};
+
 interface Message {
   role: 'user' | 'model';
   text: string;
@@ -40,7 +51,7 @@ export const DeepAgent: React.FC = () => {
       }
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: messages.concat({ role: 'user', text: userMessage }).map(m => ({
           role: m.role,
           parts: [{ text: m.text }]
@@ -67,9 +78,7 @@ export const DeepAgent: React.FC = () => {
       setMessages(prev => [...prev, { role: 'model', text }]);
     } catch (error: any) {
       console.error("Deep Agent Error:", error);
-      const errorMessage = error.message?.includes("API key not valid") 
-        ? "The Gemini API key is invalid. Please check your configuration."
-        : "I'm having trouble connecting right now. Please try again later.";
+      const errorMessage = getFriendlyErrorMessage(error);
       setMessages(prev => [...prev, { role: 'model', text: errorMessage }]);
     } finally {
       setIsLoading(false);
